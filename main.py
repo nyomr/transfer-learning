@@ -1,9 +1,11 @@
 import numpy as np
 import uvicorn
 import uvicorn
-# import tensorflow as tf
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.security.api_key import APIKeyHeader
+import secrets
 from io import BytesIO
 from PIL import Image
 from typing import Tuple
@@ -15,6 +17,29 @@ from torchvision import models, datasets, transforms
 from pydantic import BaseModel
 
 app = FastAPI()
+security = HTTPBasic()
+
+# credentials
+API_KEY = "test"
+key_header = APIKeyHeader(name="access_token", auto_error=True)
+
+
+def authenticate(api_key: str = Depends(key_header)):
+    if api_key != API_KEY:
+        raise HTTPException(
+            status_code=403, detail="Wrong credentials"
+        )
+
+# def authenticate(api_key: str = Depends(key_header)):
+#     correct_key = secrets.compare_digest(api_key, API_KEY)
+#     if not (correct_key):
+#         raise HTTPException(
+#             status_code=401,
+#             detail="Incorrect credentials",
+#             headers={"WWW-Authenticate": "Basic"}
+#         )
+#     return api_key
+
 
 # preprocessing
 data_transforms = transforms.Compose([
@@ -51,7 +76,7 @@ def read_file(data) -> Tuple[Image.Image, Tuple[int, int]]:
 
 
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+async def predict(file: UploadFile = File(...), api_key: str = Depends(authenticate)):
     try:
         img, _ = read_file(await file.read())
 
